@@ -1,0 +1,88 @@
+<html>
+    <head>
+        <title>Looking At Summit Attendees</title>
+        <script src="http://code.jquery.com/jquery-2.0.0.min.js"></script>
+        <link href='http://fonts.googleapis.com/css?family=Milonga' rel='stylesheet' type='text/css'>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />	<style type="text/css">
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        html, body, #map {
+            height: 100%;
+            font-family: 'Milonga', cursive;
+        }
+        .leaflet-container .leaflet-control-zoom {
+            margin-left: 13px;
+            margin-top: 70px;
+        }
+
+        .leaflet-popup-content {
+            font-family: sans-serif;
+        }
+
+        #map { z-index: 1;}
+        #title { z-index: 2; position: absolute; left: 10px; }
+    </style>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.2/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.0.2/dist/leaflet.js"></script>
+        <script type="text/javascript" src="js/leaflet-providers.js"></script>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/css/leaflet-beautify-marker-icon.css">
+        <script src="/js/leaflet-beautify-marker-icon.js"></script>
+        <script src="/js/leaflet-beautify-marker.js"></script>
+
+    </head>
+    <body>
+
+    <div id="map" class="map"></div>
+
+    </body>
+    <script>
+        var map = L.map('map').setView([34.00, 100.10], 5);
+        var zippinLayerGroup = L.layerGroup().addTo(map);
+        var airportpinLayerGroup = L.layerGroup().addTo(map);
+        // here is a preview for each style https://leaflet-extras.github.io/leaflet-providers/preview/
+        var stamenLayer = L.tileLayer.provider('Stamen.Terrain').addTo(map);
+
+        function getPins(e){
+            bounds = map.getBounds();
+            airporturl = "api/map/airports";
+            $.get(airporturl, pinTheMapWithAirports, "json")
+        }
+
+        function pinTheMapWithAirports(data) {
+
+            //Set up the icon
+            options = {
+                icon: 'plane',
+                borderColor: '#8D208B',
+                textColor: '#8D208B',
+                backgroundColor: 'transparent'
+            };
+
+            //clear the current pins
+            map.removeLayer(airportpinLayerGroup);
+
+            //add the new pins
+            var markerArray = new Array(data.length)
+            for (var i = 0; i < data.length; i++) {
+                airportData = data[i];
+                markerArray[i] = L.marker([airportData.latitude, airportData.longitude], {icon: L.BeautifyIcon.icon(options)}).bindPopup(airportData.name + "<br>" + airportData.description);
+            }
+
+            airportpinLayerGroup = L.layerGroup(markerArray).addTo(map);
+        }
+
+        map.on('dragend', getPins);
+        map.on('zoomend', getPins);
+        map.whenReady(getPins)
+
+    </script>
+
+</html>
+
+
+
+
