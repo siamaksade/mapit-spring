@@ -43,35 +43,38 @@ public class MapData {
     @PostConstruct
     protected void init() {
         try {
-            LOG.info("Connecting to database {}:5432/{}", env.getProperty("POSTGRES_HOST"), env.getProperty("POSTGRES_DB"));
+            String dbName = env.getProperty("POSTGRES_DB", "mapitdb");
+            String dbHost = env.getProperty("POSTGRES_HOST", "localhost");
+
+            LOG.info("Connecting to database {}:5432/{}", dbHost, dbName);
             DriverManagerDataSource dm = new DriverManagerDataSource();
             dm.setDriverClassName("org.postgresql.Driver");
-            dm.setUrl("jdbc:postgresql://" + env.getProperty("POSTGRES_HOST") + ":5432/" + env.getProperty("POSTGRES_DB"));
-            dm.setUsername(env.getProperty("POSTGRES_USER"));
-            dm.setPassword(env.getProperty("POSTGRES_PASSWORD"));
+            dm.setUrl("jdbc:postgresql://" + dbHost + ":5432/" + dbName);
+            dm.setUsername(env.getProperty("POSTGRES_USER", "postgresql"));
+            dm.setPassword(env.getProperty("POSTGRES_PASSWORD", "postgresql"));
 
             jdbc = new JdbcTemplate(dm, false);
+
+            createTables();
         } catch (Exception e) {
-            LOG.error("Failed to connect to database");
-            e.printStackTrace();
+            LOG.error("Failed to connect to database", e);
         }
 
         if (jdbc != null) {
             Integer itemCount = 0;
             try {
                 itemCount = jdbc.queryForObject("select count(*) from mappoint", Integer.class);
+
+                if (itemCount == 0) {
+                    loadAirports();
+                }
             } catch (DataAccessException e) {
                 LOG.warn(e.getMessage());
-                LOG.info("Database is not initialized");
-            }
-            if (itemCount == 0) {
-                loadAirports();
             }
         }
     }
 
-    private void loadAirports() {
-        LOG.info("Initializing database");
+    private void createTables() {
         try {
             // create table
             jdbc.execute("CREATE TABLE mappoint (" +
@@ -87,6 +90,10 @@ public class MapData {
             LOG.debug("Failed to create mappoint table, it might already exist!");
             LOG.debug(ex.getMessage());
         }
+    }
+
+    private void loadAirports() {
+        LOG.info("Importing airport data");
 
         try {
             // import json data
