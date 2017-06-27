@@ -1,0 +1,270 @@
+apiVersion: v1
+kind: Template
+labels:
+  demo: mapit-template
+metadata:
+  annotations:
+    description: MapIt Spring Boot Geo Spatial Application Template
+    iconClass: icon-java
+    tags: microservice,spring
+  name: mapit-template
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${APP_NAME}
+    labels:
+      application: ${APP_NAME}
+  spec:
+    tags:
+    - name: latest
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: ${APP_NAME}
+    labels:
+      application: ${APP_NAME}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APP_NAME}:latest
+    source:
+      git:
+        ref: ${GIT_REF}
+        uri: ${GIT_URI}
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+        - name: MAVEN_MIRROR_URL
+          value: ${MAVEN_MIRROR_URL}
+        from:
+          kind: ImageStreamTag
+          name: redhat-openjdk18-openshift:1.0
+          namespace: openshift
+      type: Source
+    triggers:
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APP_NAME}
+    labels:
+      application: ${APP_NAME}
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: ${APP_NAME}
+    strategy:
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          application: ${APP_NAME}
+          deploymentconfig: ${APP_NAME}
+        name: ${APP_NAME}
+      spec:
+        containers:
+        - env:
+          - name: POSTGRES_HOST
+            value: ${APP_NAME}-postgresql
+          - name: POSTGRES_DB
+            value: mapitdb
+          - name: POSTGRES_USER
+            value: ${DB_USERNAME}
+          - name: POSTGRES_PASSWORD
+            value: ${DB_PASSWORD}
+          image: ${APP_NAME}
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: ${APP_NAME}
+          ports:
+          - containerPort: 8778
+            name: jolokia
+            protocol: TCP
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          - containerPort: 8443
+            name: https
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          terminationMessagePath: /dev/termination-log
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 75
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP_NAME}
+        from:
+          kind: ImageStreamTag
+          name: ${APP_NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: ${APP_NAME}
+      application: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deploymentconfig: ${APP_NAME}
+- apiVersion: v1
+  kind: Route
+  metadata:
+    labels:
+      application: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    to:
+      kind: Service
+      name: ${APP_NAME}
+      weight: 100
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APP_NAME}-postgresql
+    labels:
+      application: ${APP_NAME}
+  spec:
+    replicas: 1
+    selector:
+      deploymentconfig: ${APP_NAME}-postgresql
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          application: ${APP_NAME}
+          deploymentconfig: ${APP_NAME}-postgresql
+        name: ${APP_NAME}-postgresql
+      spec:
+        containers:
+        - env:
+          - name: POSTGRESQL_USER
+            value: ${DB_USERNAME}
+          - name: POSTGRESQL_PASSWORD
+            value: ${DB_PASSWORD}
+          - name: POSTGRESQL_DATABASE
+            value: mapitdb
+          image: postgresql
+          imagePullPolicy: Always
+          name: ${APP_NAME}-postgresql
+          ports:
+          - containerPort: 5432
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /var/lib/pgsql/data
+            name: ${APP_NAME}-postgresql-data
+          livenessProbe:
+            initialDelaySeconds: 30
+            failureThreshold: 10
+            periodSeconds: 10
+            tcpSocket:
+              port: 5432
+            timeoutSeconds: 1
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c 'SELECT 1'
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+            failureThreshold: 10
+            periodSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 256Mi
+        terminationGracePeriodSeconds: 60
+        volumes:
+        - name: ${APP_NAME}-postgresql-data
+          emptyDir: {}
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP_NAME}-postgresql
+        from:
+          kind: ImageStreamTag
+          name: postgresql:latest
+          namespace: openshift
+      type: ImageChange
+    - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      application: ${APP_NAME}
+    name: ${APP_NAME}-postgresql
+  spec:
+    ports:
+    - port: 5432
+      targetPort: 5432
+    selector:
+      deploymentconfig: ${APP_NAME}-postgresql
+parameters:
+- displayName: Application name
+  name: APP_NAME
+  required: true
+  value: mapit
+- description: Git source URI for application
+  displayName: Git source repository
+  name: GIT_URI
+  required: true
+  value: https://github.com/siamaksade/mapit-spring.git
+- displayName: Git branch/tag reference
+  name: GIT_REF
+  required: true
+  value: master
+- description: Maven mirror url. If nexus is deployed locally, use nexus url (e.g. http://nexus.ci:8081/content/groups/public/)
+  displayName: Maven mirror url
+  name: MAVEN_MIRROR_URL
+- description: MapIt database user name
+  displayName: PostgreSQL Database username
+  from: user[a-zA-Z0-9]{3}
+  generate: expression
+  name: DB_USERNAME
+  required: true
+- description: MapIt database user password
+  displayName: PostgreSQL Database password
+  from: '[a-zA-Z0-9]{8}'
+  generate: expression
+  name: DB_PASSWORD
+  required: true
