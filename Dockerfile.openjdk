@@ -1,0 +1,7 @@
+FROM docker.io/openjdk:8-jre-slim
+
+EXPOSE 8080
+
+ADD target/mapit-spring.jar /mapit-spring.jar
+
+CMD ["/usr/bin/java", "-jar", "/mapit-spring.jar"]
