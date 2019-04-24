@@ -1,4 +1,5 @@
-FROM fabric8/java-centos-openjdk8-jdk:1.6
+# FROM fabric8/java-centos-openjdk8-jdk:1.6
+FROM openjdk
 
 ENV AB_ENABLED off
 ENV AB_JOLOKIA_AUTH_OPENSHIFT true
