@@ -1,4 +1,3 @@
-# FROM fabric8/java-centos-openjdk8-jdk:1.6
 FROM docker.io/openjdk:8
 
 ENV AB_ENABLED off
@@ -7,5 +6,6 @@ ENV JAVA_OPTIONS -Xmx256m
 
 EXPOSE 8080
 
-RUN chmod -R 777 /deployments/
+RUN mkdir /deployments/ \
+  && chmod -R 777 /deployments/
 ADD target/mapit-spring.jar /deployments/
